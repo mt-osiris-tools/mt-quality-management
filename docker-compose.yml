@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: qms-postgres
+    environment:
+      POSTGRES_DB: qms
+      POSTGRES_USER: qms_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - qms_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qms_user -d qms"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command:
+      - "postgres"
+      - "-c"
+      - "data_checksums=on"
+      - "-c"
+      - "log_statement=all"
+      - "-c"
+      - "log_duration=on"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: qms-api
+    environment:
+      DATABASE_URL: postgresql://qms_user:${DB_PASSWORD:-changeme}@postgres:5432/qms
+      ENCRYPTION_KEY_LEVEL_1: ${ENCRYPTION_KEY_LEVEL_1}
+      ENCRYPTION_KEY_LEVEL_2: ${ENCRYPTION_KEY_LEVEL_2}
+      ENCRYPTION_KEY_LEVEL_3: ${ENCRYPTION_KEY_LEVEL_3}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
+      JWT_ALGORITHM: RS256
+      APP_ENV: development
+      LOG_LEVEL: INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src:/app/src:ro
+      - ./main.py:/app/main.py:ro
+    networks:
+      - qms_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: qms-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - qms_network
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+
+networks:
+  qms_network:
+    driver: bridge
