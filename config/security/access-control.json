@@ -1,0 +1,36 @@
+{
+  "roles": [
+    {
+      "id": "admin",
+      "label": "Administrator",
+      "permissions": ["create", "read", "update", "delete", "classify", "audit", "manage_users"]
+    },
+    {
+      "id": "manager",
+      "label": "Document Manager",
+      "permissions": ["create", "read", "update", "delete", "classify"]
+    },
+    {
+      "id": "editor",
+      "label": "Editor",
+      "permissions": ["create", "read", "update"]
+    },
+    {
+      "id": "viewer",
+      "label": "Viewer",
+      "permissions": ["read"]
+    },
+    {
+      "id": "auditor",
+      "label": "Auditor",
+      "permissions": ["read", "audit"]
+    }
+  ],
+  "maxClassificationAccess": {
+    "admin": "restricted",
+    "manager": "confidential",
+    "editor": "internal",
+    "viewer": "internal",
+    "auditor": "restricted"
+  }
+}

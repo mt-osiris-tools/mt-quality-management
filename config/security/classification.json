@@ -1,0 +1,30 @@
+{
+  "levels": [
+    {
+      "id": "public",
+      "label": "Public",
+      "level": 0,
+      "description": "Information approved for public release"
+    },
+    {
+      "id": "internal",
+      "label": "Internal",
+      "level": 1,
+      "description": "Internal use only, not for external distribution"
+    },
+    {
+      "id": "confidential",
+      "label": "Confidential",
+      "level": 2,
+      "description": "Sensitive business information, restricted access"
+    },
+    {
+      "id": "restricted",
+      "label": "Restricted",
+      "level": 3,
+      "description": "Highly sensitive, need-to-know basis only"
+    }
+  ],
+  "defaultLevel": "internal",
+  "requireClassification": true
+}

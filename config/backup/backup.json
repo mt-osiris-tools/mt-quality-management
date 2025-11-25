@@ -1,0 +1,25 @@
+{
+  "schedule": {
+    "full": "0 2 * * 0",
+    "incremental": "0 2 * * 1-6"
+  },
+  "retention": {
+    "dailyBackups": 7,
+    "weeklyBackups": 4,
+    "monthlyBackups": 12
+  },
+  "encryption": {
+    "enabled": true,
+    "algorithm": "AES-256"
+  },
+  "verification": {
+    "enabled": true,
+    "frequency": "weekly"
+  },
+  "destinations": [
+    {
+      "type": "local",
+      "path": "./backups"
+    }
+  ]
+}

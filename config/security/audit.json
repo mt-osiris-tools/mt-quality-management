@@ -1,0 +1,26 @@
+{
+  "events": [
+    "document.create",
+    "document.read",
+    "document.update",
+    "document.delete",
+    "document.download",
+    "document.classify",
+    "document.share",
+    "user.login",
+    "user.logout",
+    "user.login_failed",
+    "user.permission_change",
+    "system.backup",
+    "system.restore"
+  ],
+  "retention": {
+    "days": 365,
+    "archiveAfterDays": 90
+  },
+  "alertOn": [
+    "user.login_failed",
+    "document.delete",
+    "user.permission_change"
+  ]
+}

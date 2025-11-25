@@ -1,0 +1,989 @@
+openapi: 3.0.3
+info:
+  title: Document Control API
+  description: |
+    ISO 27001-compliant document management system with classification-based access control,
+    comprehensive audit logging, and version control.
+
+    ## Security
+    All endpoints require JWT authentication via Bearer token. Token must include:
+    - `sub`: User ID
+    - `email`: User email
+    - `role`: One of [Admin, Manager, Editor, Viewer, Auditor]
+    - `classification_clearance`: Integer 0-3
+
+    ## Authorization
+    Access control enforced via:
+    - **Role-Based Access Control (RBAC)**: 5 roles with hierarchical permissions
+    - **Classification-Based Access**: Users can only access documents at/below their clearance level
+    - **Document Ownership**: Editors/Managers can only modify documents they own
+
+    ## Audit Logging
+    ALL operations logged to immutable audit trail with:
+    - Actor identification (user ID, role, IP)
+    - Action details (operation, resource, timestamp)
+    - Security context (classification level, before/after states)
+  version: 1.0.0
+  contact:
+    name: Quality Management System Team
+    email: qms@example.com
+
+servers:
+  - url: https://qms.example.com/api/v1
+    description: Production server
+  - url: http://localhost:8000/api/v1
+    description: Development server
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: documents
+    description: Document creation, retrieval, update, and deletion
+  - name: search
+    description: Full-text document search with permission filtering
+  - name: versions
+    description: Document version history and retrieval
+  - name: classifications
+    description: Document classification management
+  - name: audit
+    description: Audit log queries and reporting
+
+paths:
+  # ==================== DOCUMENTS ====================
+
+  /documents:
+    post:
+      tags: [documents]
+      summary: Create new document
+      description: |
+        Creates a new document with specified classification level.
+        Default classification is "Internal" (level 1) if not specified.
+
+        **Required Role**: Editor, Manager, or Admin
+        **Access Control**: Can only create documents at or below clearance level
+      operationId: createDocument
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentCreate'
+            examples:
+              minimal:
+                summary: Minimal document (default Internal classification)
+                value:
+                  title: "Project Plan 2025"
+                  content: "Project objectives and timeline..."
+              confidential:
+                summary: Confidential document
+                value:
+                  title: "Financial Report Q4"
+                  content: "Revenue: $1.2M..."
+                  classification_level: 2
+      responses:
+        '201':
+          description: Document created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    get:
+      tags: [documents]
+      summary: List documents
+      description: |
+        Returns paginated list of documents user has access to.
+        Results filtered by user's classification clearance and role.
+
+        **Required Role**: Any authenticated user
+        **Access Control**: Only documents at or below clearance level
+      operationId: listDocuments
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: classification_level
+          in: query
+          description: Filter by classification level
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 3
+        - name: owner_id
+          in: query
+          description: Filter by document owner
+          schema:
+            type: integer
+        - name: status
+          in: query
+          description: Filter by document status
+          schema:
+            type: string
+            enum: [active, deleted]
+            default: active
+        - name: sort
+          in: query
+          description: Sort order
+          schema:
+            type: string
+            enum: [created_asc, created_desc, modified_asc, modified_desc, title_asc, title_desc]
+            default: created_desc
+      responses:
+        '200':
+          description: List of documents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DocumentSummary'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /documents/{documentId}:
+    get:
+      tags: [documents]
+      summary: Get document by ID
+      description: |
+        Retrieves full document details including decrypted content.
+
+        **Required Role**: Any authenticated user
+        **Access Control**:
+        - Document classification <= user clearance level
+        - Auditor role can access all classification levels
+      operationId: getDocument
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      responses:
+        '200':
+          description: Document details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [documents]
+      summary: Update document
+      description: |
+        Updates document content and/or title. Creates new version on content change.
+
+        **Required Role**: Editor (own docs), Manager (own docs), or Admin (any doc)
+        **Access Control**: Can only update documents you own (except Admin)
+      operationId: updateDocument
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentUpdate'
+            examples:
+              content_update:
+                summary: Update content (creates new version)
+                value:
+                  content: "Updated project timeline..."
+                  change_description: "Added Q2 milestones"
+              title_update:
+                summary: Update title only (no new version)
+                value:
+                  title: "Project Plan 2025 (Revised)"
+      responses:
+        '200':
+          description: Document updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [documents]
+      summary: Delete document (soft delete)
+      description: |
+        Soft deletes document by marking status='deleted'. Content retained per retention policy.
+
+        **Required Role**: Manager (own docs) or Admin (any doc)
+        **Access Control**: Can only delete documents you own (except Admin)
+      operationId: deleteDocument
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      responses:
+        '204':
+          description: Document deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /documents/{documentId}/classification:
+    put:
+      tags: [classifications]
+      summary: Change document classification
+      description: |
+        Updates document classification level. Downgrades require justification.
+
+        **Required Role**: Manager or Admin
+        **Access Control**:
+        - Upgrades (lower to higher): Allowed without approval
+        - Downgrades (higher to lower): Requires approval and justification
+      operationId: changeClassification
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - new_classification_level
+              properties:
+                new_classification_level:
+                  type: integer
+                  minimum: 0
+                  maximum: 3
+                  description: New classification level (0=Public, 1=Internal, 2=Confidential, 3=Restricted)
+                justification:
+                  type: string
+                  minLength: 10
+                  maxLength: 1000
+                  description: Required for downgrades - reason for classification change
+                approval_required:
+                  type: boolean
+                  description: Set to true if requesting downgrade approval
+            examples:
+              upgrade:
+                summary: Upgrade classification (no approval needed)
+                value:
+                  new_classification_level: 2
+                  justification: "Document contains confidential financial data"
+              downgrade:
+                summary: Downgrade classification (requires approval)
+                value:
+                  new_classification_level: 1
+                  justification: "Information is now public knowledge as of board meeting"
+                  approval_required: true
+      responses:
+        '200':
+          description: Classification changed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: Validation error (e.g., downgrade without justification)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ==================== SEARCH ====================
+
+  /search:
+    get:
+      tags: [search]
+      summary: Search documents
+      description: |
+        Full-text search across document titles and content (where accessible).
+        Results filtered by user's classification clearance.
+
+        **Required Role**: Any authenticated user
+        **Access Control**: Only documents at or below clearance level
+        **Performance**: <2 seconds for 10,000 documents (per success criteria SC-002)
+      operationId: searchDocuments
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search query (full-text search)
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 500
+          example: "project plan 2025"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  query:
+                    type: string
+                    description: Original search query
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SearchResult'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  search_time_ms:
+                    type: integer
+                    description: Search execution time in milliseconds
+              example:
+                query: "project plan"
+                results:
+                  - document_id: 123
+                    title: "Project Plan 2025"
+                    snippet: "Project objectives include..."
+                    classification_level: 1
+                    owner_email: "alice@example.com"
+                    created_at: "2025-11-24T10:00:00Z"
+                    relevance_score: 0.95
+                pagination:
+                  page: 1
+                  page_size: 20
+                  total_results: 42
+                  total_pages: 3
+                search_time_ms: 156
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ==================== VERSIONS ====================
+
+  /documents/{documentId}/versions:
+    get:
+      tags: [versions]
+      summary: Get document version history
+      description: |
+        Returns list of all versions for a document.
+
+        **Required Role**: Any authenticated user with access to document
+        **Access Control**: Must have access to current document classification
+      operationId: getVersionHistory
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Version history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  document_id:
+                    type: integer
+                  versions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DocumentVersion'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /documents/{documentId}/versions/{versionNumber}:
+    get:
+      tags: [versions]
+      summary: Get specific document version
+      description: |
+        Retrieves content of a specific document version.
+
+        **Required Role**: Any authenticated user with access to document
+        **Access Control**: Must have access to classification level at time of version
+      operationId: getDocumentVersion
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+        - name: versionNumber
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Version number to retrieve
+      responses:
+        '200':
+          description: Document version details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ==================== AUDIT LOGS ====================
+
+  /audit:
+    get:
+      tags: [audit]
+      summary: Query audit logs
+      description: |
+        Retrieve audit log entries with filtering and pagination.
+
+        **Required Role**: Admin or Auditor only
+        **Performance**: <3 seconds for 90-day queries (per success criteria SC-010)
+      operationId: queryAuditLogs
+      parameters:
+        - name: start_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: Start of date range (ISO 8601)
+        - name: end_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: End of date range (ISO 8601)
+        - name: actor_id
+          in: query
+          schema:
+            type: integer
+          description: Filter by user who performed action
+        - name: event_type
+          in: query
+          schema:
+            type: string
+            enum: [CREATE, READ, UPDATE, DELETE, CLASSIFY, AUTH]
+          description: Filter by event type
+        - name: resource_type
+          in: query
+          schema:
+            type: string
+          description: Filter by resource type (e.g., Document, User)
+        - name: resource_id
+          in: query
+          schema:
+            type: integer
+          description: Filter by specific resource ID
+        - name: action
+          in: query
+          schema:
+            type: string
+          description: Filter by specific action (e.g., CREATE_DOCUMENT, LOGIN_SUCCESS)
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+      responses:
+        '200':
+          description: Audit log entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  logs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditLog'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  query_time_ms:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /audit/verify-integrity:
+    post:
+      tags: [audit]
+      summary: Verify audit log integrity
+      description: |
+        Verifies checksum chain integrity for audit logs in specified range.
+
+        **Required Role**: Admin or Auditor only
+      operationId: verifyAuditIntegrity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                start_id:
+                  type: integer
+                  description: Start audit log ID (null = from beginning)
+                end_id:
+                  type: integer
+                  description: End audit log ID (null = to latest)
+            examples:
+              full_check:
+                summary: Verify entire audit trail
+                value: {}
+              range_check:
+                summary: Verify specific range
+                value:
+                  start_id: 1000
+                  end_id: 2000
+      responses:
+        '200':
+          description: Integrity verification result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  is_valid:
+                    type: boolean
+                    description: True if integrity verified
+                  broken_at:
+                    type: integer
+                    nullable: true
+                    description: Audit log ID where chain broke (null if valid)
+                  message:
+                    type: string
+                    description: Verification result message
+                  checked_range:
+                    type: object
+                    properties:
+                      start_id:
+                        type: integer
+                      end_id:
+                        type: integer
+              examples:
+                valid:
+                  summary: Audit chain valid
+                  value:
+                    is_valid: true
+                    broken_at: null
+                    message: "Audit chain valid from ID 1 to 5000"
+                    checked_range:
+                      start_id: 1
+                      end_id: 5000
+                broken:
+                  summary: Audit chain broken
+                  value:
+                    is_valid: false
+                    broken_at: 2451
+                    message: "Audit chain broken at ID 2451: previous_hash does not match"
+                    checked_range:
+                      start_id: 1
+                      end_id: 5000
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ==================== CLASSIFICATIONS ====================
+
+  /classifications:
+    get:
+      tags: [classifications]
+      summary: List all classification levels
+      description: |
+        Returns reference list of all classification levels.
+
+        **Required Role**: Any authenticated user
+      operationId: listClassifications
+      responses:
+        '200':
+          description: List of classification levels
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  classifications:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Classification'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+# ==================== COMPONENTS ====================
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT token from external authentication system.
+        Token must include: sub, email, role, classification_clearance
+
+  parameters:
+    DocumentId:
+      name: documentId
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: Unique document identifier
+
+  schemas:
+    DocumentCreate:
+      type: object
+      required:
+        - title
+        - content
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Document title
+        content:
+          type: string
+          minLength: 1
+          description: Document content (will be encrypted based on classification)
+        classification_level:
+          type: integer
+          minimum: 0
+          maximum: 3
+          default: 1
+          description: Classification level (0=Public, 1=Internal, 2=Confidential, 3=Restricted)
+
+    DocumentUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: New document title
+        content:
+          type: string
+          minLength: 1
+          description: New document content (creates new version)
+        change_description:
+          type: string
+          maxLength: 1000
+          description: Description of changes (recorded in version history)
+
+    Document:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+          description: Decrypted document content
+        classification_level:
+          type: integer
+        classification_name:
+          type: string
+          description: Human-readable classification name
+        version:
+          type: integer
+        owner:
+          $ref: '#/components/schemas/UserSummary'
+        status:
+          type: string
+          enum: [active, deleted]
+        created_at:
+          type: string
+          format: date-time
+        modified_at:
+          type: string
+          format: date-time
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    DocumentSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        classification_level:
+          type: integer
+        classification_name:
+          type: string
+        version:
+          type: integer
+        owner_email:
+          type: string
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        modified_at:
+          type: string
+          format: date-time
+
+    DocumentVersion:
+      type: object
+      properties:
+        id:
+          type: integer
+        document_id:
+          type: integer
+        version_number:
+          type: integer
+        content:
+          type: string
+          description: Decrypted content snapshot
+        author:
+          $ref: '#/components/schemas/UserSummary'
+        change_description:
+          type: string
+          nullable: true
+        classification_at_version:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    SearchResult:
+      type: object
+      properties:
+        document_id:
+          type: integer
+        title:
+          type: string
+        snippet:
+          type: string
+          description: Highlighted excerpt from document
+        classification_level:
+          type: integer
+        classification_name:
+          type: string
+        owner_email:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        relevance_score:
+          type: number
+          format: float
+          description: Search relevance score (0.0 - 1.0)
+
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+        event_type:
+          type: string
+        actor_id:
+          type: integer
+          nullable: true
+        actor_email:
+          type: string
+          nullable: true
+        actor_role:
+          type: string
+        resource_type:
+          type: string
+        resource_id:
+          type: integer
+          nullable: true
+        action:
+          type: string
+        classification_level:
+          type: integer
+          nullable: true
+        ip_address:
+          type: string
+        user_agent:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+        current_hash:
+          type: string
+
+    Classification:
+      type: object
+      properties:
+        level_code:
+          type: integer
+        level_name:
+          type: string
+        access_rules:
+          type: string
+        handling_requirements:
+          type: string
+
+    UserSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        role:
+          type: string
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total_results:
+          type: integer
+        total_pages:
+          type: integer
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          additionalProperties: true
+
+  responses:
+    BadRequest:
+      description: Bad request (invalid input)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized (missing or invalid token)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: Forbidden (insufficient permissions)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "FORBIDDEN"
+            message: "Insufficient permissions to access document with classification level Confidential"
+            details:
+              required_clearance: 2
+              user_clearance: 1
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              message:
+                type: string
+              validation_errors:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    field:
+                      type: string
+                    message:
+                      type: string

@@ -1,0 +1,28 @@
+{
+  "policies": [
+    {
+      "id": "standard",
+      "label": "Standard Retention",
+      "retentionDays": 2555,
+      "reviewCycleDays": 365,
+      "description": "Default 7-year retention with annual review"
+    },
+    {
+      "id": "legal",
+      "label": "Legal Hold",
+      "retentionDays": null,
+      "reviewCycleDays": 180,
+      "description": "Indefinite retention for legal purposes"
+    },
+    {
+      "id": "temporary",
+      "label": "Temporary",
+      "retentionDays": 90,
+      "reviewCycleDays": 30,
+      "description": "Short-term documents, auto-archive after 90 days"
+    }
+  ],
+  "defaultPolicy": "standard",
+  "disposalApprovalRequired": true,
+  "disposalNotificationDays": 30
+}

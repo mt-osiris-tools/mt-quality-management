@@ -1,0 +1,17 @@
+node_modules/
+.env
+dist/
+*.log
+.DS_Store
+
+# Storage (keep structure, ignore contents)
+uploads/*
+!uploads/.gitkeep
+
+# Backups (sensitive data)
+backups/*
+!backups/.gitkeep
+
+# Logs (keep structure, ignore contents)
+logs/**/*
+!logs/**/.gitkeep
