@@ -15,6 +15,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
+from src.middleware.audit_logging import AuditLoggingMiddleware
+from src.middleware.authentication import AuthenticationMiddleware
 from src.utils.config import get_settings
 from src.utils.database import get_engine
 
@@ -61,9 +63,8 @@ if settings.app_env == "development":
 # Middleware (will be added in T027-T031)
 # ============================================
 
-# TODO: Add authentication middleware (T028)
-# TODO: Add authorization middleware (T029)
-# TODO: Add audit logging middleware (T030)
+app.add_middleware(AuditLoggingMiddleware)
+app.add_middleware(AuthenticationMiddleware, api_prefix=settings.api_prefix)
 
 
 # ============================================
