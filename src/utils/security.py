@@ -139,6 +139,10 @@ def validate_token_claims(payload: dict[str, Any]) -> bool:
     if not all(claim in payload for claim in required_claims):
         return False
 
+    sub = payload.get("sub")
+    if not isinstance(sub, str) or not sub.isdigit():
+        return False
+
     # Validate role
     valid_roles = ["Admin", "Manager", "Editor", "Viewer", "Auditor"]
     if payload.get("role") not in valid_roles:
