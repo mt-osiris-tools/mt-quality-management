@@ -14,6 +14,7 @@ __pycache__/
 .ruff_cache/
 .tox/
 .coverage
+coverage.xml
 htmlcov/
 
 # Virtual environments
