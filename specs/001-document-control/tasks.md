@@ -86,7 +86,7 @@
 - [ ] T040 [P] [US1] Create src/services/__init__.py for services package
 - [ ] T041 [US1] Create src/services/encryption_service.py with encrypt_document and decrypt_document functions using pgcrypto
 - [ ] T042 [US1] Add get_encryption_key function to encryption_service.py (separate keys per classification level from environment)
-- [ ] T043 [US1] Create src/services/audit_service.py with create_audit_log function (generate checksum chain)
+- [ ] T043 [US1] Create src/services/audit_service.py with create_audit_log function (HMAC-SHA-256 checksum chain using external key, store previous_hash/current_hash)
 - [ ] T044 [US1] Create src/services/document_service.py with create_document function (encrypt content, validate classification, assign owner, create audit log)
 - [ ] T045 [US1] Add get_document function to document_service.py (decrypt content, verify access permissions via RLS)
 - [ ] T046 [US1] Add list_documents function to document_service.py (pagination, filtering by classification/owner/status)
@@ -186,7 +186,7 @@
 
 - [ ] T093 Add query_audit_logs function to audit_service.py with date range and filter parameters (actor, event_type, resource_type, action)
 - [ ] T094 Add audit log partition management to audit_service.py (create monthly partitions; automated retention cleanup deferred to Phase 2 future enhancement)
-- [ ] T095 Create PostgreSQL verify_audit_chain function in migration script (integrity verification with checksum chain)
+- [ ] T095 Create PostgreSQL verify_audit_chain function in migration script (verify chain linkage; optionally recompute HMAC when app.audit_hmac_key is provided)
 - [ ] T096 Add verify_integrity function to audit_service.py (wrapper for SQL function)
 - [ ] T097 Create src/schemas/audit.py with AuditLog Pydantic model and query parameters
 - [ ] T098 Create src/routes/audit.py with GET /api/v1/audit endpoint (date range filters, Admin/Auditor only)
