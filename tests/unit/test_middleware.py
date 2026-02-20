@@ -10,7 +10,9 @@ from jose import jwt
 from src.middleware.audit_logging import AuditLoggingMiddleware
 from src.middleware.authentication import AuthenticationMiddleware
 from src.middleware.authorization import require_clearance, require_role
+from src.models.audit_log import AuditLog
 from src.utils.config import get_settings
+from src.utils.database import get_db_context
 
 
 def _make_app() -> FastAPI:
@@ -82,6 +84,9 @@ def test_auth_middleware_accepts_valid_token_and_sets_user(
     assert resp.status_code == 200
     body = resp.json()
     assert body["user"]["email"] == "user@example.com"
+
+    with get_db_context() as db:
+        assert db.query(AuditLog).count() >= 1
 
 
 def test_authorization_require_role(monkeypatch: pytest.MonkeyPatch) -> None:
