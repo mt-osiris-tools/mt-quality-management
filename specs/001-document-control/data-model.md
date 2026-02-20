@@ -289,9 +289,7 @@ CREATE TABLE audit_logs (
     user_agent TEXT,
     details JSONB,  -- Additional context (old_value, new_value, etc.)
     previous_hash VARCHAR(64),  -- Hash of previous audit log entry (blockchain-style chain)
-    current_hash VARCHAR(64) GENERATED ALWAYS AS (
-        encode(sha256((id || timestamp || event_type || COALESCE(actor_id::text, '') || action || COALESCE(previous_hash, ''))::bytea), 'hex')
-    ) STORED
+    current_hash VARCHAR(64) NOT NULL  -- HMAC-SHA-256(prev_hash || canonical_payload, audit_hmac_key) hex
 ) PARTITION BY RANGE (timestamp);
 
 -- Create initial partition (2025-11)
@@ -320,7 +318,7 @@ DECLARE
     start_check BIGINT := COALESCE(start_id, 1);
     end_check BIGINT := COALESCE(end_id, (SELECT MAX(id) FROM audit_logs));
 BEGIN
-    -- Find first broken link in chain
+    -- Find first broken link in chain (link continuity)
     SELECT a1.id, a1.previous_hash, a2.current_hash INTO broken_link
     FROM audit_logs a1
     LEFT JOIN audit_logs a2 ON a1.previous_hash = a2.current_hash
@@ -354,8 +352,8 @@ $$ LANGUAGE plpgsql;
 - `ip_address`: Client IP address (security monitoring)
 - `user_agent`: Client user agent string
 - `details`: JSON field for additional context (flexible structure)
-- `previous_hash`: SHA-256 hash of previous audit log entry (blockchain-style chain)
-- `current_hash`: SHA-256 hash of this entry (auto-generated, immutable)
+- `previous_hash`: hash of previous audit log entry (chain link)
+- `current_hash`: HMAC-SHA-256 over canonical payload + previous_hash (tamper-evident)
 
 **Partitioning Strategy**:
 - Partitioned by month using PostgreSQL range partitioning

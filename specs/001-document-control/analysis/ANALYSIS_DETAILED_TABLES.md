@@ -119,7 +119,7 @@
 |---|---|---|
 | **Table Definition** | T039 | Partitioned table (monthly partitions) with columns: id, event_type, actor_id, resource_type, resource_id, timestamp, metadata (JSONB), previous_hash, current_hash |
 | **Event Types** | T030, T043 | CREATE, READ, UPDATE, DELETE, CLASSIFY, AUTH |
-| **Checksum Chain** | T043, T095 | MD5(previous_hash + current_data) → current_hash; validates integrity |
+| **Checksum Chain** | T043, T095 | SHA-256(previous_hash \|\| current_data) → current_hash (option: HMAC-SHA-256 with external key); validates integrity |
 | **Immutability** | T095 | REVOKE UPDATE, DELETE on audit_logs table via RLS/database permissions |
 | **Partitioning** | T094 | Monthly partitions auto-created; old partitions archived/deleted after 1-year retention |
 | **Query Interface** | T093, T097 | Query function with date range, actor, event_type, resource filters |
