@@ -42,6 +42,7 @@ services:
       ENCRYPTION_KEY_LEVEL_3: ${ENCRYPTION_KEY_LEVEL_3}
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
       JWT_ALGORITHM: RS256
+      AUDIT_HMAC_KEY: ${AUDIT_HMAC_KEY}
       APP_ENV: development
       LOG_LEVEL: INFO
     depends_on:

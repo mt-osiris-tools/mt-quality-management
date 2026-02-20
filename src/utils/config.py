@@ -61,6 +61,8 @@ class Settings(BaseSettings):
     session_timeout_minutes: int = 30
     max_login_attempts: int = 5
 
+    audit_hmac_key: str = ""
+
     # Performance Settings
     max_document_size_mb: int = 50
     search_results_limit: int = 1000
@@ -79,6 +81,7 @@ class Settings(BaseSettings):
         "encryption_key_level_2",
         "encryption_key_level_3",
         "jwt_public_key",
+        "audit_hmac_key",
     )
     @classmethod
     def _required_non_empty(cls, value: str) -> str:
