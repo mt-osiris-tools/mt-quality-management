@@ -6,12 +6,12 @@ Implements connection pooling for 100 concurrent users as per performance requir
 """
 
 from contextlib import contextmanager
-from typing import Generator
+from typing import Any, Generator, Mapping, Protocol
 
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
-from sqlalchemy.pool import QueuePool
+from sqlalchemy.pool import QueuePool, StaticPool
 
 from src.utils.config import get_settings
 
@@ -38,15 +38,24 @@ def get_engine() -> Engine:
     global _engine
     if _engine is None:
         settings = get_settings()
-        _engine = create_engine(
-            settings.database_url,
-            poolclass=QueuePool,
-            pool_size=settings.db_pool_size,
-            max_overflow=settings.db_max_overflow,
-            pool_timeout=settings.db_pool_timeout,
-            pool_pre_ping=True,  # Verify connections before use
-            echo=settings.db_echo,  # SQL logging (False in production)
-        )
+        database_url = settings.database_url
+
+        engine_kwargs: dict[str, object] = {
+            "pool_pre_ping": True,
+            "echo": settings.db_echo,
+        }
+
+        if database_url.startswith("sqlite"):
+            engine_kwargs["connect_args"] = {"check_same_thread": False}
+            if ":memory:" in database_url:
+                engine_kwargs["poolclass"] = StaticPool
+        else:
+            engine_kwargs["poolclass"] = QueuePool
+            engine_kwargs["pool_size"] = settings.db_pool_size
+            engine_kwargs["max_overflow"] = settings.db_max_overflow
+            engine_kwargs["pool_timeout"] = settings.db_pool_timeout
+
+        _engine = create_engine(database_url, **engine_kwargs)
 
         # Enable Row-Level Security context for all connections
         @event.listens_for(_engine, "connect")
@@ -121,18 +130,13 @@ def get_db_context() -> Generator[Session, None, None]:
         db.close()
 
 
-def set_rls_context(db: Session, user_id: int, user_role: str) -> None:
-    """
-    Set Row-Level Security context for current session.
+class _SupportsExecute(Protocol):
+    def execute(
+        self, statement: Any, params: Mapping[str, Any] | None = None
+    ) -> Any: ...
 
-    This must be called at the start of each request to enable
-    classification-based access control via PostgreSQL RLS policies.
 
-    Args:
-        db: Database session
-        user_id: Current user ID from JWT token
-        user_role: Current user role from JWT token
-    """
+def set_rls_context(db: _SupportsExecute, user_id: int, user_role: str) -> None:
     db.execute(
         text("SELECT set_config('app.user_id', :user_id, true)"),
         {"user_id": str(user_id)},
@@ -150,6 +154,10 @@ def init_db() -> None:
     Creates all tables defined in Base.metadata.
     Note: In production, use Alembic migrations instead.
     """
+    import importlib
+
+    importlib.import_module("src.models")
+
     engine = get_engine()
     Base.metadata.create_all(bind=engine)
 

@@ -41,6 +41,7 @@ def test_db_context_manager_commits() -> None:
 def test_init_and_drop_db_no_tables() -> None:
     init_db()
     drop_db()
+    init_db()
 
 
 @dataclass
