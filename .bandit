@@ -1,76 +1,15 @@
-# Bandit Security Scanner Configuration
-# https://bandit.readthedocs.io/
+exclude_dirs:
+  - tests
+  - venv
+  - .venv
+  - env
+  - .tox
+  - alembic/versions
+  - .pytest_cache
+  - __pycache__
 
-[bandit]
-# Directories to exclude from scanning
-exclude_dirs =
-    /tests
-    /venv
-    /.venv
-    /env
-    /.tox
-    /alembic/versions
-    /.pytest_cache
-    /__pycache__
+skips:
+  - B101
 
-# Test IDs to skip (with justification)
-skips =
-    # B101 - assert_used: Asserts are used in tests, acceptable
-    # B601 - paramiko_calls: Not using paramiko
-    # B603 - subprocess_without_shell_equals_true: We use shell=False explicitly
-
-# Tests to run (security-critical checks)
-tests =
-    B201   # Flask debug mode
-    B301   # Pickle usage (insecure deserialization)
-    B302   # marshal usage
-    B303   # MD5 or SHA1 usage (weak hashing)
-    B304   # Insecure cipher usage
-    B305   # Insecure cipher mode
-    B306   # TempFile.mktemp usage
-    B307   # eval usage
-    B308   # mark_safe usage
-    B309   # HTTPSConnection usage
-    B310   # urllib.urlopen usage
-    B311   # Random usage for cryptographic purposes
-    B312   # Telnet usage
-    B313   # XML parsing vulnerabilities
-    B314   # XML parsing vulnerabilities (minidom)
-    B315   # XML parsing vulnerabilities (expatreader)
-    B316   # XML parsing vulnerabilities (sax)
-    B317   # XML parsing vulnerabilities (expatbuilder)
-    B318   # XML parsing vulnerabilities (elementtree)
-    B319   # XML parsing vulnerabilities (pulldom)
-    B320   # XML parsing vulnerabilities (etree)
-    B321   # FTP usage
-    B322   # Input function usage
-    B323   # Unverified SSL context
-    B324   # Insecure hash function usage
-    B501   # Request without timeout
-    B502   # SSL with bad version
-    B503   # SSL with bad defaults
-    B504   # SSL with no version
-    B505   # Weak cryptographic key
-    B506   # YAML load usage
-    B507   # SSH no host key verification
-    B601   # Paramiko usage
-    B602   # Shell injection
-    B603   # Subprocess without shell
-    B604   # Any other function with shell=True
-    B605   # Starting process with shell
-    B606   # Starting process without shell
-    B607   # Starting process with partial path
-    B608   # SQL injection
-    B609   # Wildcard injection
-
-# Severity thresholds
-# Level to report (LOW, MEDIUM, HIGH)
-level = MEDIUM
-
-# Confidence thresholds
-# Confidence to report (LOW, MEDIUM, HIGH)
-confidence = MEDIUM
-
-# Output format
-# json, txt, csv, html, yaml
-format = json
+severity: MEDIUM
+confidence: MEDIUM

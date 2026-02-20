@@ -2,7 +2,7 @@
 # Python 3.11+ required
 
 # Web Framework
-fastapi[all]==0.115.0
+fastapi[all]==0.129.0
 uvicorn[standard]==0.30.6
 
 # Database & ORM
@@ -11,9 +11,10 @@ alembic==1.13.3
 psycopg2-binary==2.9.9
 
 # Authentication & Security
-python-jose[cryptography]==3.3.0
+python-jose[cryptography]==3.5.0
 passlib[bcrypt]==1.7.4
-python-multipart==0.0.9
+bcrypt==3.2.2
+python-multipart==0.0.18
 
 # Data Validation
 pydantic==2.9.2

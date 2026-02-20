@@ -8,8 +8,9 @@ Implements security helpers for:
 """
 
 import hashlib
+import os
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -85,7 +86,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def decode_jwt_token(token: str) -> Dict[str, Any]:
+def decode_jwt_token(token: str) -> dict[str, Any]:
     """
     Decode and validate JWT token.
 
@@ -116,7 +117,7 @@ def decode_jwt_token(token: str) -> Dict[str, Any]:
         raise JWTError(f"Invalid token: {str(e)}")
 
 
-def validate_token_claims(payload: Dict[str, Any]) -> bool:
+def validate_token_claims(payload: dict[str, Any]) -> bool:
     """
     Validate required JWT token claims are present.
 
@@ -214,8 +215,8 @@ def create_mock_jwt_token(
     """
     Create mock JWT token for development/testing.
 
-    WARNING: This uses a hardcoded secret key. Only use in development!
-    In production, tokens are issued by external IdP.
+    WARNING: This is for development/testing only.
+    In production, tokens are issued by an external IdP.
 
     Args:
         user_id: User ID
@@ -236,7 +237,8 @@ def create_mock_jwt_token(
         "exp": datetime.utcnow() + timedelta(minutes=expires_minutes),
     }
 
-    # Development only - use test secret key
-    secret_key = "development-secret-key-do-not-use-in-production"
+    secret_key = os.getenv("DEV_JWT_SECRET")
+    if not secret_key:
+        raise RuntimeError("DEV_JWT_SECRET is required for mock token generation")
 
     return jwt.encode(payload, secret_key, algorithm="HS256")

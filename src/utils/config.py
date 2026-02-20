@@ -12,10 +12,10 @@ Loads configuration from environment variables as specified in .env.example:
 - LOG_LEVEL: Logging level (DEBUG, INFO, WARNING, ERROR)
 """
 
-import os
 from functools import lru_cache
 from typing import Optional
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,19 +23,19 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     # Database Configuration
-    database_url: str
+    database_url: str = ""
     db_pool_size: int = 10
     db_max_overflow: int = 20
     db_pool_timeout: int = 30
     db_echo: bool = False
 
     # Encryption Keys (AES-256, 32 bytes each, base64 encoded)
-    encryption_key_level_1: str
-    encryption_key_level_2: str
-    encryption_key_level_3: str
+    encryption_key_level_1: str = ""
+    encryption_key_level_2: str = ""
+    encryption_key_level_3: str = ""
 
     # JWT Authentication
-    jwt_public_key: str
+    jwt_public_key: str = ""
     jwt_algorithm: str = "RS256"
     jwt_audience: Optional[str] = None
     jwt_issuer: Optional[str] = None
@@ -72,6 +72,19 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
+
+    @field_validator(
+        "database_url",
+        "encryption_key_level_1",
+        "encryption_key_level_2",
+        "encryption_key_level_3",
+        "jwt_public_key",
+    )
+    @classmethod
+    def _required_non_empty(cls, value: str) -> str:
+        if not value:
+            raise ValueError("Required setting is missing")
+        return value
 
 
 @lru_cache

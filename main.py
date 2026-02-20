@@ -13,6 +13,7 @@ import structlog
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 from src.utils.config import get_settings
 from src.utils.database import get_engine
@@ -89,7 +90,7 @@ async def health_check() -> dict:
 
 
 @app.get("/ready", tags=["health"], status_code=status.HTTP_200_OK)
-async def readiness_check() -> dict:
+async def readiness_check() -> JSONResponse:
     """
     Readiness probe - can the application serve traffic?
 
@@ -105,7 +106,7 @@ async def readiness_check() -> dict:
     try:
         engine = get_engine()
         with engine.connect() as conn:
-            conn.execute("SELECT 1")
+            conn.execute(text("SELECT 1"))
         components["database"] = "connected"
         overall_status = "ready"
         status_code = status.HTTP_200_OK

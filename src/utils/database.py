@@ -8,7 +8,7 @@ Implements connection pooling for 100 concurrent users as per performance requir
 from contextlib import contextmanager
 from typing import Generator
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 from sqlalchemy.pool import QueuePool
@@ -19,8 +19,8 @@ from src.utils.config import get_settings
 Base = declarative_base()
 
 # Global engine and session maker (initialized on first use)
-_engine: Engine = None
-_SessionLocal: sessionmaker = None
+_engine: Engine | None = None
+_SessionLocal: sessionmaker | None = None
 
 
 def get_engine() -> Engine:
@@ -133,8 +133,14 @@ def set_rls_context(db: Session, user_id: int, user_role: str) -> None:
         user_id: Current user ID from JWT token
         user_role: Current user role from JWT token
     """
-    db.execute(f"SET app.user_id = {user_id}")
-    db.execute(f"SET app.user_role = '{user_role}'")
+    db.execute(
+        text("SELECT set_config('app.user_id', :user_id, true)"),
+        {"user_id": str(user_id)},
+    )
+    db.execute(
+        text("SELECT set_config('app.user_role', :user_role, true)"),
+        {"user_role": user_role},
+    )
 
 
 def init_db() -> None:

@@ -12,6 +12,11 @@ pytest-env==1.1.5
 bandit==1.7.10
 safety==3.2.8
 
+# Safety runtime compatibility pins
+typer==0.16.0
+setuptools==80.9.0
+marshmallow==3.26.2
+
 # Code Quality
 black==24.8.0
 isort==5.13.2
