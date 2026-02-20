@@ -151,9 +151,7 @@ CREATE TABLE audit_logs (
   user_agent TEXT,
   details JSONB,
   previous_hash VARCHAR(64),
-  current_hash VARCHAR(64) GENERATED ALWAYS AS (
-    encode(sha256((id || timestamp || event_type || actor_id || action || COALESCE(previous_hash, ''))::bytea), 'hex')
-  ) STORED
+  current_hash VARCHAR(64) NOT NULL
 );
 
 -- Partition by month
